@@ -368,7 +368,7 @@
                     <arguments>
                         <argument>-classpath</argument>
                         <classpath/>
-                        <argument>software.amazon.awssdk.benchmark.BenchmarkRunner</argument>
+                        <argument>software.amazon.awssdk.benchmark.HttpClientComparison</argument>
                     </arguments>
                 </configuration>
             </plugin>
