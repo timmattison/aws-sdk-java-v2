@@ -30,6 +30,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
@@ -81,7 +82,7 @@ public class HttpClientComparison {
 
     @State(Scope.Benchmark)
     public static class BenchmarkState {
-        @Param({"apache", "urlConnection", "netty", "crt"})
+        @Param({"netty", "crt"})
         public String clientName;
 
         public Either<DynamoDbClient, DynamoDbAsyncClient> clientInstance;
@@ -96,10 +97,16 @@ public class HttpClientComparison {
                     clientInstance = Either.left(DynamoDbClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build());
                     break;
                 case "netty":
-                    clientInstance = Either.right(DynamoDbAsyncClient.builder().httpClientBuilder(NettyNioAsyncHttpClient.builder().maxConcurrency(100)).build());
+                    clientInstance = Either.right(DynamoDbAsyncClient.builder()
+                                                                     .asyncConfiguration(c -> c.advancedOption(SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR, Runnable::run))
+                                                                     .httpClientBuilder(NettyNioAsyncHttpClient.builder().maxConcurrency(100))
+                                                                     .build());
                     break;
                 case "crt":
-                    clientInstance = Either.right(DynamoDbAsyncClient.builder().httpClientBuilder(AwsCrtAsyncHttpClient.builder().maxConcurrency(100)).build());
+                    clientInstance = Either.right(DynamoDbAsyncClient.builder()
+                                                                     .asyncConfiguration(c -> c.advancedOption(SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR, Runnable::run))
+                                                                     .httpClientBuilder(AwsCrtAsyncHttpClient.builder().maxConcurrency(100))
+                                                                     .build());
                     break;
                 default:
                     throw new IllegalStateException();
