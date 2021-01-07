@@ -21,12 +21,14 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import java.util.List;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 import software.amazon.awssdk.annotations.SdkInternalApi;
 import software.amazon.awssdk.http.Protocol;
+import software.amazon.awssdk.http.TlsTrustManagersProvider;
 import software.amazon.awssdk.utils.Logger;
 import software.amazon.awssdk.utils.Validate;
 
@@ -49,7 +51,7 @@ public final class SslContextProvider {
         try {
             return SslContextBuilder.forClient()
                                     .sslProvider(sslProvider)
-                                    .ciphers(Http2SecurityUtil.CIPHERS, SupportedCipherSuiteFilter.INSTANCE)
+                                    .ciphers(getCiphers(), SupportedCipherSuiteFilter.INSTANCE)
                                     .trustManager(trustManagerFactory)
                                     .keyManager(keyManagerFactory)
                                     .build();
@@ -58,12 +60,23 @@ public final class SslContextProvider {
         }
     }
 
+    private List<String> getCiphers() {
+        // HTTP/2: per Rfc7540, there is a blocked list of cipher suites for HTTP/2, so setting
+        // the recommended cipher suites directly here
+        // See https://tools.ietf.org/html/rfc7540#section-9.2.2
+        // HTTP/1.1: return null so that the default ciphers suites will be used
+        // https://github.com/netty/netty/blob/0dc246eb129796313b58c1dbdd674aa289f72cad/handler/src/main/java/io/netty/handler
+        // /ssl/SslUtils.java
+        return protocol.equals(Protocol.HTTP2) ? Http2SecurityUtil.CIPHERS : null;
+    }
+
     private TrustManagerFactory getTrustManager(NettyConfiguration configuration) {
-        Validate.isTrue(configuration.tlsTrustManagersProvider() == null || !configuration.trustAllCertificates(),
+        TlsTrustManagersProvider tlsTrustManagersProvider = configuration.tlsTrustManagersProvider();
+        Validate.isTrue(tlsTrustManagersProvider == null || !configuration.trustAllCertificates(),
                         "A TlsTrustManagerProvider can't be provided if TrustAllCertificates is also set");
 
-        if (configuration.tlsTrustManagersProvider() != null) {
-            return StaticTrustManagerFactory.create(configuration.tlsTrustManagersProvider().trustManagers());
+        if (tlsTrustManagersProvider != null) {
+            return StaticTrustManagerFactory.create(tlsTrustManagersProvider.trustManagers());
         }
 
         if (configuration.trustAllCertificates()) {
